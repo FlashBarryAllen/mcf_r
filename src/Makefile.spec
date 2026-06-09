@@ -17,7 +17,7 @@ EXTRA_CFLAGS     = -fno-strict-aliasing -fno-unsafe-math-optimizations -fno-fini
 EXTRA_PORTABILITY = -DSPEC_LP64
 FC               = $(SPECLANG)gfortran           
 FC_VERSION_OPTION = --version
-OPTIMIZE         = -DENABLE_FP -Ofast -fomit-frame-pointer -flto
+OPTIMIZE         = -march=native -DENABLE_FP -Ofast -fomit-frame-pointer -flto
 OS               = unix
 SPECLANG         = /usr/bin/
 absolutely_no_locking = 0
