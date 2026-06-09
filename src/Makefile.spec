@@ -9,15 +9,15 @@ NEED_MATH=yes
 BENCHLANG=C
 
 BENCH_CFLAGS     = -Ispec_qsort -DSPEC_AUTO_SUPPRESS_OPENMP
-CC               = $(SPECLANG)gcc     -std=c99   -mabi=lp64
+CC               = $(SPECLANG)gcc     -std=c99   
 CC_VERSION_OPTION = --version
-CXX              = $(SPECLANG)g++     -std=c++03 -mabi=lp64
+CXX              = $(SPECLANG)g++     -std=c++03 
 CXX_VERSION_OPTION = --version
 EXTRA_CFLAGS     = -fno-strict-aliasing -fno-unsafe-math-optimizations -fno-finite-math-only -fgnu89-inline -fcommon
 EXTRA_PORTABILITY = -DSPEC_LP64
-FC               = $(SPECLANG)gfortran           -mabi=lp64
+FC               = $(SPECLANG)gfortran           
 FC_VERSION_OPTION = --version
-OPTIMIZE         = -mcpu=neoverse-n1 -DENABLE_FP -Ofast -fomit-frame-pointer -flto
+OPTIMIZE         = -DENABLE_FP -Ofast -fomit-frame-pointer -flto
 OS               = unix
 SPECLANG         = /usr/bin/
 absolutely_no_locking = 0
