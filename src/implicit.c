@@ -1,24 +1,8 @@
 /**************************************************************************
 IMPLICIT.C of ZIB optimizer MCF, SPEC version
-
-Dres. Loebel, Borndoerfer & Weider GbR (LBW)
-Churer Zeile 15, 12205 Berlin
-
-Konrad-Zuse-Zentrum fuer Informationstechnik Berlin (ZIB)
-Scientific Computing - Optimization
-Takustr. 7, 14195 Berlin
-
-This software was developed at ZIB Berlin. Maintenance and revisions 
-solely on responsibility of LBW
-
-Copyright (c) 1998-2000 ZIB.           
-Copyright (c) 2000-2002 ZIB & Loebel.  
-Copyright (c) 2003-2005 Loebel.
-Copyright (c) 2006-2010 LBW.
+Modified: Structure Peeling -- node_t* replaced by node_p (int32_t).
+          All node field accesses use NODE_xxx() macros.
 **************************************************************************/
-/*  LAST EDIT: Tue May 25 23:46:30 2010 by Loebel (opt0.zib.de)  */
-/*  $Id: implicit.c,v 1.21 2010/05/25 21:58:44 bzfloebe Exp $  */
-
 
 #if defined(SPEC)
 # include "spec_qsort.h"
@@ -40,8 +24,7 @@ arc_t **a2;
     return -1;
   if( (*a1)->id < (*a2)->id )
     return -1;
-
-    return 1;
+  return 1;
 }
 
 #ifdef _PROTO_
@@ -60,13 +43,13 @@ LONG (*getPos)(network_t *, LONG);
 #pragma omp parallel for private(node)
 #endif
     for (i = 0; i <= net->n; i++) {
-      node = net->nodes + i;
-      if (node->basic_arc && node->basic_arc->id >= 0)
-          node->basic_arc = &sorted_array[getPos(net, node->basic_arc->id)];
-      if (node->firstin && node->firstin->id >= 0)
-          node->firstin = &sorted_array[getPos(net, node->firstin->id)];
-      if (node->firstout && node->firstout->id >= 0)
-          node->firstout = &sorted_array[getPos(net, node->firstout->id)];
+      node = (node_p)(net->nodes + i);
+      if (NODE_BASIC_ARC(node) && NODE_BASIC_ARC(node)->id >= 0)
+          NODE_BASIC_ARC(node) = &sorted_array[getPos(net, NODE_BASIC_ARC(node)->id)];
+      if (NODE_FIRSTIN(node) && NODE_FIRSTIN(node)->id >= 0)
+          NODE_FIRSTIN(node) = &sorted_array[getPos(net, NODE_FIRSTIN(node)->id)];
+      if (NODE_FIRSTOUT(node) && NODE_FIRSTOUT(node)->id >= 0)
+          NODE_FIRSTOUT(node) = &sorted_array[getPos(net, NODE_FIRSTOUT(node)->id)];
     }
 
     return 0;
@@ -74,7 +57,7 @@ LONG (*getPos)(network_t *, LONG);
 
 
 #ifdef _PROTO_
-LONG refreshPositions( network_t *net, LONG (*getPos)(network_t *, LONG),LONG new_m)
+LONG refreshPositions( network_t *net, LONG (*getPos)(network_t *, LONG), LONG new_m)
 #else
 LONG refreshPositions( net, getPos, new_m)
 network_t *net;
@@ -117,7 +100,6 @@ LONG *new_arcs_array;
 arc_p **arcs_pointer_sorted;
 #endif
 {
-
   LONG max_new_arcs;
   arc_p **positions;
   LONG *values;
@@ -125,7 +107,7 @@ arc_p **arcs_pointer_sorted;
   LONG best_pos = 0;
   LONG start_id, i;
   arc_t* arc;
-  
+
   #if (defined(_OPENMP) || defined(SPEC_OPENMP)) && !defined(SPEC_SUPPRESS_OPENMP) && !defined(SPEC_AUTO_SUPPRESS_OPENMP)
   LONG num_threads = omp_get_max_threads();
   #else
@@ -142,13 +124,11 @@ arc_p **arcs_pointer_sorted;
 
   *new_arcs = 0;
 
-
-  for(i = 0; i< num_threads; i++) {
+  for(i = 0; i < num_threads; i++) {
     *new_arcs += new_arcs_array[i];
     positions[i] = arcs_pointer_sorted[i];
     values[i] = 0;
   }
-
 
   start_id = net->m;
   while(global_new < *new_arcs && global_new < max_new_arcs) {
@@ -165,23 +145,15 @@ arc_p **arcs_pointer_sorted;
                 best_pos = i;
             }
         }
-//        if (global_new >= 3999000)
-//            printf("global_new %ld redcost %ld arcid %d  \n",global_new,arc->flow, arc->id);
         arc->id = start_id++;
         arc->flow = 1;
         global_new++;
         positions[best_pos]++;
         values[best_pos]++;
-
-
   }
-//    arc_t* nu;
-//    nu->id = 0;
-
-
 
   *new_arcs = 0;
-  for (i = 0; i< num_threads; i++) {
+  for (i = 0; i < num_threads; i++) {
     *new_arcs += values[i];
   }
   net->max_elems = K;
@@ -197,8 +169,8 @@ arc_p **arcs_pointer_sorted;
 
     free(positions);
     free(values);
-
 }
+
 #ifdef _PROTO_
 LONG resize_prob( network_t *net )
 #else
@@ -207,12 +179,11 @@ LONG resize_prob( net )
 #endif
 {
     arc_t *arc, *old_arcs;
-    node_t *node, *stop, *root;
+    node_p node, stop;
+    node_p root;
     size_t off;
-            
-    
-    assert( net->max_new_m >= 3 );
 
+    assert( net->max_new_m >= 3 );
 
     net->max_m += net->max_new_m;
     net->max_residual_new_m += net->max_new_m;
@@ -225,7 +196,6 @@ LONG resize_prob( net )
     fflush( stdout );
 #endif
 
-
     arc = (arc_t *) realloc( net->arcs, net->max_m * sizeof(arc_t) );
     if( !arc )
     {
@@ -233,41 +203,37 @@ LONG resize_prob( net )
         fflush( stdout );
         return -1;
     }
-    
-    old_arcs = net->arcs;
 
+    old_arcs = net->arcs;
     net->arcs = arc;
     net->stop_arcs = arc + net->m;
 
-    root = node = net->nodes;
-    for(node++, stop = net->stop_nodes; node < stop; node++ ) {
-       if( node->basic_arc && node->pred != root) {
-          off = node->basic_arc - old_arcs;
-            node->basic_arc = (arc_t *)(net->arcs + off);
+    root = net->nodes;  /* root is index 0 (net->nodes == 0) */
+    for( node = net->nodes + 1, stop = net->stop_nodes; node < stop; node++ )
+    {
+        if( NODE_BASIC_ARC(node) && NODE_PRED(node) != root )
+        {
+            off = NODE_BASIC_ARC(node) - old_arcs;
+            NODE_BASIC_ARC(node) = (arc_t *)(net->arcs + off);
         }
     }
 
     arc = (arc_t *) realloc( net->sorted_arcs, net->max_m * sizeof(arc_t) );
     net->sorted_arcs = arc;
-        
+
     return 0;
 }
 
 
-
-
-
-
-
 #ifdef _PROTO_
-void insert_new_arc(arc_t *newarc, LONG newpos, node_t *tail, node_t *head,
+void insert_new_arc(arc_t *newarc, LONG newpos, node_p tail, node_p head,
     cost_t cost, cost_t red_cost, LONG m, LONG number)
 #else
 void insert_new_arc( newarc, newpos, tail, head, cost, red_cost, m, number)
      arc_t *newarc;
      LONG newpos;
-     node_t *tail;
-     node_t *head;
+     node_p tail;
+     node_p head;
      cost_t cost;
      cost_t red_cost;
      LONG m;
@@ -301,24 +267,20 @@ void insert_new_arc( newarc, newpos, tail, head, cost, red_cost, m, number)
         newarc[pos-1].flow     = (flow_t)red_cost;
         newarc[pos-1].id       = number;
     }
-    
+
     return;
-}   
-
-
-
-
+}
 
 
 #ifdef _PROTO_
-void replace_weaker_arc( arc_t *newarc, node_t *tail, node_t *head,
-                         cost_t cost, cost_t red_cost,LONG max_new_par_residual_new_arcs, LONG number)
+void replace_weaker_arc( arc_t *newarc, node_p tail, node_p head,
+                         cost_t cost, cost_t red_cost, LONG max_new_par_residual_new_arcs, LONG number)
 #else
 void replace_weaker_arc( net, newarc, tail, head, cost, red_cost, max_new_par_residual_new_arcs, number)
      network *net;
      arc_t *newarc;
-     node_t *tail;
-     node_t *head;
+     node_p tail;
+     node_p head;
      cost_t cost;
      cost_t red_cost;
      LONG max_new_par_residual_new_arcs;
@@ -332,9 +294,9 @@ void replace_weaker_arc( net, newarc, tail, head, cost, red_cost, max_new_par_re
     newarc[0].head     = head;
     newarc[0].org_cost = cost;
     newarc[0].cost     = cost;
-    newarc[0].flow     = (flow_t)red_cost; 
+    newarc[0].flow     = (flow_t)red_cost;
     newarc[0].id       = number;
-                    
+
     pos = 1;
     cmp = (newarc[1].flow > newarc[2].flow) ? 2 : 3;
     while( cmp <= max_new_par_residual_new_arcs && red_cost < newarc[cmp-1].flow )
@@ -345,12 +307,12 @@ void replace_weaker_arc( net, newarc, tail, head, cost, red_cost, max_new_par_re
         newarc[pos-1].org_cost = newarc[cmp-1].cost;
         newarc[pos-1].flow = newarc[cmp-1].flow;
         newarc[pos-1].id   = newarc[cmp-1].id;
-        
+
         newarc[cmp-1].tail = tail;
         newarc[cmp-1].head = head;
         newarc[cmp-1].cost = cost;
         newarc[cmp-1].org_cost = cost;
-        newarc[cmp-1].flow = (flow_t)red_cost; 
+        newarc[cmp-1].flow = (flow_t)red_cost;
         newarc[cmp-1].id   = number;
         pos = cmp;
         cmp *= 2;
@@ -360,14 +322,12 @@ void replace_weaker_arc( net, newarc, tail, head, cost, red_cost, max_new_par_re
     }
 
     return;
-}   
-
-
+}
 
 
 #if defined AT_HOME
 #include <sys/time.h>
-double Get_Time( void  ) 
+double Get_Time( void  )
 {
     struct timeval tp;
     struct timezone tzp;
@@ -376,7 +336,7 @@ double Get_Time( void  )
     else
         return 0.0;
 }
-static double wall_time = 0; 
+static double wall_time = 0;
 #endif
 
 #ifdef _PROTO_
@@ -423,8 +383,6 @@ LONG num_threads;
      for (h = 0; h < number_of_arcs; h++)
      {
        test_arc = &deleted_arcs[j][h];
-//       if (test_arc->flow == 0)
-//         continue;
        if (!test_arc->ident && ((test_arc->flow < arcnew[0].flow) || (test_arc->flow == arcnew[0].flow &&
            test_arc->id < arcnew[0].id)))
        {
@@ -434,7 +392,6 @@ LONG num_threads;
          replace_weaker_arc( arcnew, copy.tail, copy.head, copy.cost, copy.flow, max_new_par_residual_new_arcs, copy.id );
        }
      }
-
    }
 
    return count;
@@ -462,7 +419,7 @@ LONG price_out_impl( net )
     short first_replace = 1, local_first_replace;
     LONG count = 0;
     LONG num_switch_iterations;
-  LONG size_del;
+    LONG size_del;
 
     register list_elem *first_list_elem;
     register list_elem *new_list_elem;
@@ -473,9 +430,9 @@ LONG price_out_impl( net )
     register cost_t arc_cost = 30;
     register cost_t red_cost;
     register cost_t bigM_minus_min_impl_duration;
-        
+
     register arc_t *arcout, *arcin, *arcnew, *stop, *sorted_array, *arc;
-    register node_t *tail, *head;
+    register node_p tail, head;
 
 #if (defined(_OPENMP) || defined(SPEC_OPENMP)) && !defined(SPEC_SUPPRESS_OPENMP) && !defined(SPEC_AUTO_SUPPRESS_OPENMP)
     LONG num_threads = omp_get_max_threads();
@@ -483,24 +440,20 @@ LONG price_out_impl( net )
     LONG num_threads = 1;
 #endif
 
-
-    new_arcs_array = (LONG*) malloc(num_threads * sizeof(LONG));
-    num_del_arcs = (LONG*) malloc(num_threads * sizeof(LONG));
-    arcs_pointer_sorted = (arc_p**) malloc(num_threads * sizeof(arc_p*));
-    deleted_arcs = (arc_p*) malloc(num_threads * sizeof(arc_p));
+    new_arcs_array       = (LONG*)   malloc(num_threads * sizeof(LONG));
+    num_del_arcs         = (LONG*)   malloc(num_threads * sizeof(LONG));
+    arcs_pointer_sorted  = (arc_p**) malloc(num_threads * sizeof(arc_p*));
+    deleted_arcs         = (arc_p*)  malloc(num_threads * sizeof(arc_p));
 
 #if defined AT_HOME
     wall_time -= Get_Time();
 #endif
 
-    
     bigM_minus_min_impl_duration = (cost_t)bigM - min_impl_duration;
-    
 
-    
     if( net->n_trips <= MAX_NB_TRIPS_FOR_SMALL_NET )
     {
-      if( net->m + net->max_new_m > net->max_m 
+      if( net->m + net->max_new_m > net->max_m
           &&
           (net->n_trips*net->n_trips)/2 + net->m > net->max_m
           )
@@ -508,13 +461,12 @@ LONG price_out_impl( net )
         resized = 1;
         if( resize_prob( net ) )
           return -1;
-        
         refresh_neighbour_lists( net, &getOriginalArcPosition );
       }
     }
     else
     {
-      if( net->m + net->max_new_m > net->max_m 
+      if( net->m + net->max_new_m > net->max_m
           &&
           (net->n_trips*net->n_trips)/2 + net->m > net->max_m
           )
@@ -522,7 +474,6 @@ LONG price_out_impl( net )
         resized = 1;
         if( resize_prob( net ) )
           return -1;
-        
         refresh_neighbour_lists( net, &getOriginalArcPosition );
       }
     }
@@ -536,16 +487,16 @@ LONG price_out_impl( net )
     if (!sorted_array)
       return -1;
     max_new_par_residual_new_arcs = net->max_residual_new_m / num_threads;
-  first_replace = 1;
-    size_del = net->max_m/num_threads;
+    first_replace = 1;
+    size_del = net->max_m / num_threads;
+
 #if (defined(_OPENMP) || defined(SPEC_OPENMP)) && !defined(SPEC_SUPPRESS_OPENMP) && !defined(SPEC_AUTO_SUPPRESS_OPENMP)
 #pragma omp parallel private(local_first_replace,count,arc,max_redcost,list_size,id, thread, stop, red_cost, arcin, head_potential, iterator, head, tail, latest, new_list_elem, first_list_elem, arcout, i, arcnew, trips )
 #endif
     {
-      //printf("del %d\n", size_del);
       local_first_replace = 1;
       max_redcost = 0;
-      count =0;
+      count = 0;
 
 #if (defined(_OPENMP) || defined(SPEC_OPENMP)) && !defined(SPEC_SUPPRESS_OPENMP) && !defined(SPEC_AUTO_SUPPRESS_OPENMP)
   thread = omp_get_thread_num();
@@ -555,13 +506,12 @@ LONG price_out_impl( net )
 
       deleted_arcs[thread] = &sorted_array[size_del * thread];
       num_del_arcs[thread] = 0;
-        new_arcs_array[thread] = 0;
+      new_arcs_array[thread] = 0;
       arcnew = net->stop_arcs + thread * max_new_par_residual_new_arcs;
       trips = net->n_trips;
       id = 0;
       list_size = -1;
-      arcs_pointer_sorted[thread] = (arc_p*) calloc (max_new_par_residual_new_arcs, sizeof(arc_p));
-
+      arcs_pointer_sorted[thread] = (arc_p*) calloc(max_new_par_residual_new_arcs, sizeof(arc_p));
 
       for (i = 0; i < max_new_par_residual_new_arcs; i++) {
         arcs_pointer_sorted[thread][i] = &arcnew[i];
@@ -583,7 +533,6 @@ LONG price_out_impl( net )
 #endif
             calculate_max_redcost(net, &max_redcost, arcs_pointer_sorted, num_threads);
             if (!first_replace) {
-              //printf("thread %d count %ld del_size %ld\n", thread, count, size_del);
               num_del_arcs[thread] = count;
               switch_arcs(net, num_del_arcs, deleted_arcs, arcnew, thread, max_new_par_residual_new_arcs, size_del, num_threads);
               count = 0;
@@ -606,31 +555,30 @@ LONG price_out_impl( net )
           continue;
         }
 
+        /* Use node_p index and NODE_xxx macros */
         head = arcout->head;
-        latest = head->time - arcout->org_cost
+        latest = NODE_TIME(head) - arcout->org_cost
             + (LONG)bigM_minus_min_impl_duration;
 
-        head_potential = head->potential;
+        head_potential = NODE_POTENTIAL(head);
 
         iterator = first_list_elem->next;
         while( iterator )
         {
-
           arcin = iterator->arc;
           tail = arcin->tail;
 
-          if( tail->time + arcin->org_cost > latest )
+          if( NODE_TIME(tail) + arcin->org_cost > latest )
           {
             iterator = iterator->next;
             id++;
             continue;
           }
 
-          red_cost = arc_cost - tail->potential + head->potential;
+          red_cost = arc_cost - NODE_POTENTIAL(tail) + NODE_POTENTIAL(head);
 
           if( red_cost < 0 )
           {
-
             if( new_arcs_array[thread] < max_new_par_residual_new_arcs)
             {
               insert_new_arc( arcnew, new_arcs_array[thread], tail, head,
@@ -667,7 +615,6 @@ LONG price_out_impl( net )
           iterator = iterator->next;
           id++;
         }
-
       }
 
       num_del_arcs[thread] = count;
@@ -676,9 +623,7 @@ LONG price_out_impl( net )
 #pragma omp barrier
 #endif
         first_replace = 1;
-        //printf("Schleife vorher thread %d count %ld del_size %ld\n", thread, count, size_del);
           count = switch_arcs(net, num_del_arcs, deleted_arcs, arcnew, thread, max_new_par_residual_new_arcs, size_del, num_threads);
-          //printf("Schleife nachher thread %d count %ld del_size %ld\n", thread, count, size_del);
           if (count)
             first_replace = 0;
 #if (defined(_OPENMP) || defined(SPEC_OPENMP)) && !defined(SPEC_SUPPRESS_OPENMP) && !defined(SPEC_AUTO_SUPPRESS_OPENMP)
@@ -712,7 +657,7 @@ LONG price_out_impl( net )
 #if (defined(_OPENMP) || defined(SPEC_OPENMP)) && !defined(SPEC_SUPPRESS_OPENMP) && !defined(SPEC_AUTO_SUPPRESS_OPENMP)
 #pragma omp barrier
 #endif
-  free(arcs_pointer_sorted[thread]);
+      free(arcs_pointer_sorted[thread]);
       if( new_arcs_array[thread] )
       {
         arcnew = net->stop_arcs + thread * max_new_par_residual_new_arcs;
@@ -727,7 +672,7 @@ LONG price_out_impl( net )
 #if (defined(_OPENMP) || defined(SPEC_OPENMP)) && !defined(SPEC_SUPPRESS_OPENMP) && !defined(SPEC_AUTO_SUPPRESS_OPENMP)
 #pragma omp critical
 #endif
-	        sorted_array[getArcPosition(net, arcnew->id)] = *arcnew;
+                sorted_array[getArcPosition(net, arcnew->id)] = *arcnew;
             }
           }
         }
@@ -738,10 +683,10 @@ LONG price_out_impl( net )
             if (arcnew->flow == 1) {
               arcnew->flow = (flow_t)0;
               arcnew->ident = AT_LOWER;
-              arcnew->nextout = arcnew->tail->firstout;
-              arcnew->tail->firstout = arcnew;
-              arcnew->nextin = arcnew->head->firstin;
-              arcnew->head->firstin = arcnew;
+              arcnew->nextout = NODE_FIRSTOUT(arcnew->tail);
+              NODE_FIRSTOUT(arcnew->tail) = arcnew;
+              arcnew->nextin = NODE_FIRSTIN(arcnew->head);
+              NODE_FIRSTIN(arcnew->head) = arcnew;
 #if (defined(_OPENMP) || defined(SPEC_OPENMP)) && !defined(SPEC_SUPPRESS_OPENMP) && !defined(SPEC_AUTO_SUPPRESS_OPENMP)
 #pragma omp critical
 #endif
@@ -758,15 +703,6 @@ LONG price_out_impl( net )
         net->m = net->m + new_arcs;
         net->stop_arcs = net->arcs + net->m;
 
-#ifdef DEBUG
-       arc_t* arc = net->arcs;
-       for (i=0;arc < net->stop_arcs; arc++, i++)
-         if (!arc->head) {
-           printf("arc %ld is null\n", i);
-         }
-#endif
-    
-
 #if defined AT_HOME
     wall_time += Get_Time();
     printf( "total time price_out_impl(): %0.0f\n", wall_time );
@@ -778,9 +714,7 @@ LONG price_out_impl( net )
     free(deleted_arcs);
 
     return new_arcs;
-}   
-
-
+}
 
 
 #ifdef _PROTO_
@@ -793,7 +727,6 @@ LONG suspend_impl( net, threshold, all )
 #endif
 {
     LONG susp;
-    
     cost_t red_cost;
     arc_t *arc;
     LONG stop, startid;
@@ -801,32 +734,30 @@ LONG suspend_impl( net, threshold, all )
     net->max_elems = K;
     net->nr_group = ( (net->m -1) / K ) + 1;
     net->full_groups = net->nr_group - (K - (net->m % K));
-  while (net->full_groups < 0) {
-    net->full_groups = net->nr_group + net->full_groups;
-    net->max_elems--;
-  }
+    while (net->full_groups < 0) {
+        net->full_groups = net->nr_group + net->full_groups;
+        net->max_elems--;
+    }
 
     if( all ) {
         susp = net->m_impl;
     }
     else
     {
-
         startid = net->m - net->m_impl;
-        for( stop = net->m - net->m_impl, susp = 0; stop < net->m;  stop++)
+        for( stop = net->m - net->m_impl, susp = 0; stop < net->m; stop++)
         {
-          arc = net->arcs + getArcPosition(net, stop);
+            arc = net->arcs + getArcPosition(net, stop);
             if( arc->ident == AT_LOWER )
-                red_cost = arc->cost - arc->tail->potential
-                        + arc->head->potential;
+                red_cost = arc->cost - NODE_POTENTIAL(arc->tail)
+                        + NODE_POTENTIAL(arc->head);
             else
             {
                 red_cost = (cost_t)-2;
-
                 if( arc->ident == BASIC )
                 {
-                    if( !(arc->tail->basic_arc == arc) )
-                      arc->head->basic_arc = arc;
+                    if( !(NODE_BASIC_ARC(arc->tail) == arc) )
+                        NODE_BASIC_ARC(arc->head) = arc;
                 }
             }
 
@@ -836,13 +767,12 @@ LONG suspend_impl( net, threshold, all )
             }
             else
             {
-              arc->id = startid;
+                arc->id = startid;
                 startid++;
             }
         }
     }
-    
-        
+
 #if defined AT_HOME
     printf( "\nremove %ld arcs\n\n", susp );
     fflush( stdout );
@@ -852,24 +782,22 @@ LONG suspend_impl( net, threshold, all )
     {
         net->m_impl -= susp;
         net->max_residual_new_m += susp;
-        
+
         net->max_elems = K;
         net->nr_group = ( (net->m - susp -1) / K ) + 1;
         if ((net->m - susp) % K != 0)
            net->full_groups = net->nr_group - (K - ((net->m - susp) % K));
         else
            net->full_groups = net->nr_group;
-      while (net->full_groups < 0) {
-        net->full_groups = net->nr_group + net->full_groups;
-        net->max_elems--;
-      }
+        while (net->full_groups < 0) {
+            net->full_groups = net->nr_group + net->full_groups;
+            net->max_elems--;
+        }
         refreshPositions(net, &getOriginalArcPosition, net->m);
-      net->m -= susp;
+        net->m -= susp;
         net->stop_arcs -= susp;
         refresh_neighbour_lists( net, &getOriginalArcPosition );
     }
 
     return susp;
 }
-
-

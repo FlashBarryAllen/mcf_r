@@ -2,7 +2,7 @@ TUNE=base
 LABEL=ycl-64
 NUMBER=505
 NAME=mcf_r
-SOURCES= mcf.c mcfutil.c readmin.c implicit.c pstart.c output.c treeup.c \
+SOURCES= mcf.c node_arrays.c mcfutil.c readmin.c implicit.c pstart.c output.c treeup.c \
 	 pbla.c pflowup.c psimplex.c pbeampp.c spec_qsort/spec_qsort.c
 EXEBASE=mcf_r
 NEED_MATH=yes

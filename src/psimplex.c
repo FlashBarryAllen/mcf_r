@@ -1,25 +1,8 @@
 /**************************************************************************
 PSIMPLEX.C of ZIB optimizer MCF, SPEC version
-
-Dres. Loebel, Borndoerfer & Weider GbR (LBW)
-Churer Zeile 15, 12205 Berlin
-
-Konrad-Zuse-Zentrum fuer Informationstechnik Berlin (ZIB)
-Scientific Computing - Optimization
-Takustr. 7, 14195 Berlin
-
-This software was developed at ZIB Berlin. Maintenance and revisions 
-solely on responsibility of LBW
-
-Copyright (c) 1998-2000 ZIB.           
-Copyright (c) 2000-2002 ZIB & Loebel.  
-Copyright (c) 2003-2005 Loebel.
-Copyright (c) 2006-2010 LBW.
+Modified: Structure Peeling -- node_t* replaced by node_p (int32_t).
+          All node field accesses use NODE_xxx() macros.
 **************************************************************************/
-/*  LAST EDIT: Tue May 25 23:47:54 2010 by Loebel (opt0.zib.de)  */
-/*  $Id: psimplex.c,v 1.10 2010/05/25 21:58:44 bzfloebe Exp $  */
-
-
 
 #undef DEBUG
 
@@ -91,14 +74,13 @@ network_t *net;
 int thread;
 #endif
 {
-
-  arc_t         *arcs          = net->arcs;
-  arc_t         *stop_arcs     = net->stop_arcs;
-  LONG          m = net->m;
-  LONG          *iterations = &(net->iterations);
-  BASKET        *perm[K + B +1];
-  arc_t         *end_arc = net->arcs;
-  LONG          i, j;
+  arc_t  *arcs      = net->arcs;
+  arc_t  *stop_arcs = net->stop_arcs;
+  LONG    m         = net->m;
+  LONG   *iterations = &(net->iterations);
+  BASKET *perm[K + B + 1];
+  arc_t  *end_arc = net->arcs;
+  LONG    i, j;
 
   basket_sizes[thread] = 0;
   for( j = thread * (K/num_threads+B+1 + PUFFER) + 1, i=1; i < K/num_threads+B+1; i++, j++)
@@ -112,12 +94,10 @@ int thread;
 #endif
     if (thread == 1)
       markBaskets(num_threads);
-    // master must do some work here
 #if (defined(_OPENMP) || defined(SPEC_OPENMP)) && !defined(SPEC_SUPPRESS_OPENMP) && !defined(SPEC_AUTO_SUPPRESS_OPENMP)
     #pragma omp barrier
 #endif
   }
-
 }
 
 #ifdef _PROTO_
@@ -126,32 +106,30 @@ void master(network_t *net, int num_threads)
 void master(net)
 network_t *net;
 #endif
-
 {
-
-  flow_t        delta;
-  flow_t        new_flow;
-  LONG          xchange;
-  LONG          new_orientation;
-  node_t        *iplus;
-  node_t        *jplus;
-  node_t        *iminus;
-  node_t        *jminus;
-  node_t        *w;
-  arc_t         *bea;
-  arc_t         *bla;
-  arc_t         *arcs          = net->arcs;
-  arc_t         *stop_arcs     = net->stop_arcs;
-  node_t        *temp;
-  LONG          m = net->m;
-  LONG          new_set;
-  cost_t        red_cost_of_bea;
-  LONG          *iterations = &(net->iterations);
-  LONG          *bound_exchanges = &(net->bound_exchanges);
-  BASKET*       max_basket;
-  BASKET        *perm[K + B +1];
-  arc_t         *end_arc = net->arcs;
-  LONG         i, j;
+  flow_t  delta;
+  flow_t  new_flow;
+  LONG    xchange;
+  LONG    new_orientation;
+  node_p  iplus;
+  node_p  jplus;
+  node_p  iminus;
+  node_p  jminus;
+  node_p  w;
+  arc_t  *bea;
+  arc_t  *bla;
+  arc_t  *arcs      = net->arcs;
+  arc_t  *stop_arcs = net->stop_arcs;
+  node_p  temp;
+  LONG    m         = net->m;
+  LONG    new_set;
+  cost_t  red_cost_of_bea;
+  LONG   *iterations    = &(net->iterations);
+  LONG   *bound_exchanges = &(net->bound_exchanges);
+  BASKET *max_basket;
+  BASKET *perm[K + B + 1];
+  arc_t  *end_arc = net->arcs;
+  LONG    i, j;
 
 #if defined AT_HOME
   double time1 = 0, start;
@@ -160,15 +138,15 @@ network_t *net;
 #endif
 
   basket_sizes[0] = 0;
-  for( j = 1, i=1; i < K/num_threads+B+1; i++, j ++ )
+  for( j = 1, i=1; i < K/num_threads+B+1; i++, j++ )
     perm[i] = &(basket[j]);
+
 #if defined AT_HOME
     start = Get_Time2();
 #endif
 
   while( !opt )
   {
-
 #if defined AT_HOME
     time1 += Get_Time2() - start;
 #endif
@@ -179,13 +157,13 @@ network_t *net;
     start = Get_Time2();
 #endif
 
-    perm_p[0] =  perm + 1;
+    perm_p[0] = perm + 1;
 #if (defined(_OPENMP) || defined(SPEC_OPENMP)) && !defined(SPEC_SUPPRESS_OPENMP) && !defined(SPEC_AUTO_SUPPRESS_OPENMP)
     #pragma omp barrier
 #endif
 
     max_basket = 0;
-    for (i = 0; i< num_threads; i++) {
+    for (i = 0; i < num_threads; i++) {
       if ((!max_basket && opt_basket[i]) || (opt_basket[i] && cost_compare(&opt_basket[i], &max_basket) < 0)) {
         max_basket = opt_basket[i];
       }
@@ -202,15 +180,13 @@ network_t *net;
           markBaskets(num_threads);
     }
 
-
     if( red_cost_of_bea != 0)
     {
       (*iterations)++;
-      //printf("it %d\n", *iterations);
 
 #ifdef DEBUG
-      printf( "it %ld: bea = (%ld,%ld), red_cost = %ld\n",
-          *iterations, bea->tail->number, bea->head->number,
+      printf( "it %ld: bea = (%d,%d), red_cost = %ld\n",
+          *iterations, NODE_NUMBER(bea->tail), NODE_NUMBER(bea->head),
           red_cost_of_bea );
 #endif
       if( red_cost_of_bea > ZERO )
@@ -224,15 +200,14 @@ network_t *net;
         jplus = bea->head;
       }
 
-      delta = (flow_t)1;
-      iminus = primal_iminus( &delta, &xchange, iplus,
-          jplus, &w );
+      delta  = (flow_t)1;
+      iminus = primal_iminus( &delta, &xchange, iplus, jplus, &w );
 
-      if( !iminus )
+      if( iminus == INVALID_NODE )
       {
         (*bound_exchanges)++;
 
-        if( bea->ident == AT_UPPER)
+        if( bea->ident == AT_UPPER )
           bea->ident = AT_LOWER;
         else
           bea->ident = AT_UPPER;
@@ -244,16 +219,16 @@ network_t *net;
       {
         if( xchange )
         {
-          temp = jplus;
+          temp  = jplus;
           jplus = iplus;
           iplus = temp;
         }
 
-        jminus = iminus->pred;
+        jminus = NODE_PRED(iminus);
 
-        bla = iminus->basic_arc;
+        bla = NODE_BASIC_ARC(iminus);
 
-        if( xchange != iminus->orientation )
+        if( xchange != NODE_ORIENTATION(iminus) )
           new_set = AT_LOWER;
         else
           new_set = AT_UPPER;
@@ -274,12 +249,11 @@ network_t *net;
             (flow_t)net->feas_tol );
 
         bea->ident = BASIC;
-        bla->ident = new_set;
+        bla->ident = (short)new_set;
       }
     }
     else
       opt = 1;
-
 
 #if (defined(_OPENMP) || defined(SPEC_OPENMP)) && !defined(SPEC_SUPPRESS_OPENMP) && !defined(SPEC_AUTO_SUPPRESS_OPENMP)
     #pragma omp barrier
@@ -293,41 +267,37 @@ network_t *net;
     printf("runtime master thread      : %.2f sec\n", time1);
     printf("runtime global simplex     : %.2f sec\n", runtime);
 #endif
-
 }
 
 #ifdef _PROTO_
 LONG primal_net_simplex( network_t *net )
 #else
-LONG primal_net_simplex(  net )
+LONG primal_net_simplex( net )
     network_t *net;
 #endif
 {
-
    int thread;
 #if (defined(_OPENMP) || defined(SPEC_OPENMP)) && !defined(SPEC_SUPPRESS_OPENMP) && !defined(SPEC_AUTO_SUPPRESS_OPENMP)
    int num_threads = omp_get_max_threads();
 #else
   int num_threads = 1;
 #endif
-    perm_p = (BASKET***)   calloc(num_threads, sizeof(BASKET**));
-    opt_basket = (BASKET**) calloc(num_threads, sizeof(BASKET*));
-    basket_sizes = (LONG*) calloc(num_threads, sizeof(LONG));
-    basket = (BASKET*) calloc(num_threads * (K/num_threads + B + PUFFER + 1), sizeof(BASKET));
+    perm_p       = (BASKET***) calloc(num_threads, sizeof(BASKET**));
+    opt_basket   = (BASKET**)  calloc(num_threads, sizeof(BASKET*));
+    basket_sizes = (LONG*)     calloc(num_threads, sizeof(LONG));
+    basket       = (BASKET*)   calloc(num_threads * (K/num_threads + B + PUFFER + 1), sizeof(BASKET));
 
   set_static_vars(net, net->arcs);
 
-
 #if (defined(_OPENMP) || defined(SPEC_OPENMP)) && !defined(SPEC_SUPPRESS_OPENMP) && !defined(SPEC_AUTO_SUPPRESS_OPENMP)
-#pragma omp parallel shared(net, num_threads)  private(thread)  default(none)
+#pragma omp parallel shared(net, num_threads) private(thread) default(none)
 #endif
   {
-
 #if (defined(_OPENMP) || defined(SPEC_OPENMP)) && !defined(SPEC_SUPPRESS_OPENMP) && !defined(SPEC_AUTO_SUPPRESS_OPENMP)
   thread = omp_get_thread_num();
 #else
   thread = 0;
-#endif  
+#endif
       if (thread == 0)
         master(net, num_threads);
       else
@@ -344,8 +314,5 @@ LONG primal_net_simplex(  net )
     free(basket_sizes);
     free(basket);
 
-
     return 0;
 }
-
-
