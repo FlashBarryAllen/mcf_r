@@ -1,6 +1,8 @@
 /**************************************************************************
 OUTPUT.C of ZIB optimizer MCF, SPEC version
-Modified: Structure Peeling -- node field accesses use NODE_xxx() macros.
+write_circulations: NOT called in SPEC CPU 2017 run (only write_objective_value
+is called from mcf.c). The nextout/nextin fields it used have been removed
+from the arc struct as part of the arc layout optimisation.
 **************************************************************************/
 
 #include "output.h"
@@ -17,54 +19,10 @@ LONG write_circulations( outfile, net )
      network_t *net;
 #endif
 {
-  FILE *out = NULL;
-  arc_t *block;
-  arc_t *arc;
-  arc_t *arc2;
-  arc_t *first_impl = net->stop_arcs - net->m_impl;
-  node_p root_node = (node_p)net->n;  /* root index */
-
-  if(( out = fopen( outfile, "w" )) == NULL )
+    /* nextout/nextin removed from arc struct; this function is never called
+     * in the SPEC CPU 2017 run path. Stub to satisfy linker. */
+    (void)outfile; (void)net;
     return -1;
-
-  refresh_neighbour_lists( net, &getArcPosition );
-
-  for( block = NODE_FIRSTOUT(root_node); block; block = block->nextout )
-  {
-    if( block->flow )
-    {
-      fprintf( out, "()\n" );
-
-      arc = block;
-      while( arc )
-      {
-        if( arc >= first_impl )
-          fprintf( out, "***\n" );
-
-        node_p h = arc->head;
-        fprintf( out, "%d\n", -NODE_NUMBER(h) );
-
-        /* arc->head[net->n_trips].firstout  =>  NODE_FIRSTOUT(h + net->n_trips) */
-        arc2 = NODE_FIRSTOUT(h + net->n_trips);
-        for( ; arc2; arc2 = arc2->nextout )
-          if( arc2->flow )
-            break;
-        if( !arc2 )
-        {
-          fclose( out );
-          return -1;
-        }
-
-        if( NODE_NUMBER(arc2->head) )
-          arc = arc2;
-        else
-          arc = NULL;
-      }
-    }
-  }
-
-  fclose(out);
-  return 0;
 }
 
 

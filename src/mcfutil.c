@@ -27,9 +27,7 @@ void refresh_neighbour_lists( net )
     arc = net->arcs;
     for( i = 0; i < net->m; i++, arc = &net->arcs[getPos(net, i)] )
     {
-        arc->nextout            = NODE_FIRSTOUT(arc->tail);
         NODE_FIRSTOUT(arc->tail) = arc;
-        arc->nextin             = NODE_FIRSTIN(arc->head);
         NODE_FIRSTIN(arc->head)  = arc;
     }
 

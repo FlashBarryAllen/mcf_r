@@ -156,9 +156,7 @@ LONG read_min( net )
         arc->tail     = node_root;
         arc->head     = (node_p)i;
         arc->org_cost = arc->cost = (cost_t)(net->bigM + 15);
-        arc->nextout  = NODE_FIRSTOUT(node_root);
         NODE_FIRSTOUT(node_root) = arc;
-        arc->nextin   = NODE_FIRSTIN(i);
         NODE_FIRSTIN(i) = arc;
         arc = net->arcs + getArcPosition(net, ++actArc);
 
@@ -167,9 +165,7 @@ LONG read_min( net )
         arc->tail     = (node_p)(i + net->n_trips);
         arc->head     = node_root;
         arc->org_cost = arc->cost = (cost_t)15;
-        arc->nextout  = NODE_FIRSTOUT(i + net->n_trips);
         NODE_FIRSTOUT(i + net->n_trips) = arc;
-        arc->nextin   = NODE_FIRSTIN(node_root);
         NODE_FIRSTIN(node_root) = arc;
         arc = net->arcs + getArcPosition(net, ++actArc);
 
@@ -178,9 +174,7 @@ LONG read_min( net )
         arc->tail     = (node_p)i;
         arc->head     = (node_p)(i + net->n_trips);
         arc->org_cost = arc->cost = (cost_t)(2 * MAX(net->bigM, (LONG)BIGM));
-        arc->nextout  = NODE_FIRSTOUT(i);
         NODE_FIRSTOUT(i) = arc;
-        arc->nextin   = NODE_FIRSTIN(i + net->n_trips);
         NODE_FIRSTIN(i + net->n_trips) = arc;
         arc = net->arcs + getArcPosition(net, ++actArc);
     }
@@ -202,9 +196,7 @@ LONG read_min( net )
         arc->tail     = (node_p)(t + net->n_trips);
         arc->head     = (node_p)h;
         arc->org_cost = arc->cost = (cost_t)c;
-        arc->nextout  = NODE_FIRSTOUT(t + net->n_trips);
         NODE_FIRSTOUT(t + net->n_trips) = arc;
-        arc->nextin   = NODE_FIRSTIN(h);
         NODE_FIRSTIN(h) = arc;
     }
     arc = net->stop_arcs;

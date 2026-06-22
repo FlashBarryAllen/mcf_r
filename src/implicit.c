@@ -683,9 +683,7 @@ LONG price_out_impl( net )
             if (arcnew->flow == 1) {
               arcnew->flow = (flow_t)0;
               arcnew->ident = AT_LOWER;
-              arcnew->nextout = NODE_FIRSTOUT(arcnew->tail);
               NODE_FIRSTOUT(arcnew->tail) = arcnew;
-              arcnew->nextin = NODE_FIRSTIN(arcnew->head);
               NODE_FIRSTIN(arcnew->head) = arcnew;
 #if (defined(_OPENMP) || defined(SPEC_OPENMP)) && !defined(SPEC_SUPPRESS_OPENMP) && !defined(SPEC_AUTO_SUPPRESS_OPENMP)
 #pragma omp critical
